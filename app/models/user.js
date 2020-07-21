@@ -19,6 +19,7 @@ import {
 } from '../support/exceptions';
 import { Attachment, Comment, Post, PubSub as pubSub } from '../models';
 import { EventService } from '../support/EventService';
+import { userCooldownStart } from '../jobs/user-gone';
 
 import { valiate as validateUserPrefs } from './user-prefs';
 
@@ -109,6 +110,7 @@ export function addModel(dbAdapter) {
         // 'Anonymize' inactive users
         // Only id's, username and createdAt are visible
         this.screenName = this.username;
+        this.hiddenEmail = this.email;
         this.email = '';
         this.description = '';
         this.frontendPreferences = {};
@@ -571,6 +573,14 @@ export function addModel(dbAdapter) {
      */
     async setGoneStatus(status) {
       await dbAdapter.setUserGoneStatus(this.id, status);
+      const modified = await dbAdapter.getFeedOwnerById(this.id);
+      this.goneAt = modified.goneAt;
+      this.goneStatus = modified.goneStatus;
+
+      if (status === GONE_COOLDOWN) {
+        await userCooldownStart(this);
+      }
+
       await pubSub.globalUserUpdate(this.id);
       const managedGroupIds = await dbAdapter.getManagedGroupIds(this.id);
       // Some managed groups may change their isRestricted status so send update

@@ -180,14 +180,6 @@ export function addJobManagerModel(dbAdapter) {
         }
       } catch (err) {
         debugError(`error processing job '${job.name}'`, err, job);
-
-        if (sentryIsEnabled) {
-          Raven.captureException(
-            err,
-            { extra: { err: `error processing job '${job.name}': ${err?.message}` } }
-          );
-        }
-
         await job.setUnlockAt(this.jobLockTime * (job.attempts ** 1.5));
         await this._failureEvents.emit(job.name, job, err);
       }
